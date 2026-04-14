@@ -70,10 +70,18 @@
                     QuantumClip
                 </h1>
             </div>
-            <button onclick="toggleTheme()" class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" aria-label="Toggle Theme">
-                <i id="theme-icon-light" class="ph-fill ph-sun text-xl text-amber-400 hidden"></i>
-                <i id="theme-icon-dark" class="ph-fill ph-moon text-xl text-indigo-600 hidden"></i>
-            </button>
+            
+            <div class="flex items-center gap-3">
+                <!-- PWA Install Button (Hidden by default until wave function collapses) -->
+                <button id="install-app-btn" onclick="installApp()" class="hidden py-1.5 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-sm font-bold rounded-full shadow-md transition-all active:scale-95 flex items-center gap-2">
+                    <i class="ph-bold ph-download-simple"></i> Install
+                </button>
+                
+                <button onclick="toggleTheme()" class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" aria-label="Toggle Theme">
+                    <i id="theme-icon-light" class="ph-fill ph-sun text-xl text-amber-400 hidden"></i>
+                    <i id="theme-icon-dark" class="ph-fill ph-moon text-xl text-indigo-600 hidden"></i>
+                </button>
+            </div>
         </header>
 
         <!-- Global Status Message Container -->
@@ -184,6 +192,7 @@
         let state = {};
         let activeDbName = null;
         let statusTimeout = null;
+        let deferredPrompt = null; // Holds the PWA installation event
 
         // --- Local Storage Initialization ---
         function loadState() {
@@ -258,6 +267,18 @@
         function toggleTheme() {
             state.isDarkMode = !state.isDarkMode;
             applyTheme();
+        }
+
+        function installApp() {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') {
+                    showStatus('QuantumClip installed successfully!', 'success');
+                }
+                deferredPrompt = null;
+                document.getElementById('install-app-btn').classList.add('hidden');
+            });
         }
 
         async function handleReadClipboard() {
@@ -519,12 +540,21 @@
             renderCubesGrid();
         }
 
+        // --- PWA Installation Catalyst ---
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent Chrome from automatically showing the prompt
+            e.preventDefault();
+            // Stash the event so it can be triggered later.
+            deferredPrompt = e;
+            // Reveal the Install button in our UI header
+            document.getElementById('install-app-btn').classList.remove('hidden');
+        });
+
         // --- Android Web Share API Listener & Initialization ---
         window.addEventListener('DOMContentLoaded', () => {
-            loadState(); // Read from localStorage
-            renderAll(); // Build the UI
+            loadState(); 
+            renderAll(); 
 
-            // Check if Android sent data through the Share menu
             const parsedUrl = new URL(window.location);
             const sharedText = parsedUrl.searchParams.get('shared_text');
             
@@ -532,13 +562,12 @@
                 const textarea = document.getElementById('pending-text');
                 textarea.value = sharedText;
                 showStatus('Data tunneled from Android Share!', 'success');
-                // Clean the URL so refreshing doesn't re-add it
                 window.history.replaceState({}, document.title, window.location.pathname);
             }
 
-            // Register Service Worker for PWA (Android Share requirement)
+            // Register Service Worker for PWA
             if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration skipped/failed', err));
+                navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration skipped', err));
             }
         });
 
