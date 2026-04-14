@@ -1,1 +1,22 @@
-
+{
+  "name": "QuantumClip",
+  "short_name": "QC",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#9333ea",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2906/2906206.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "share_target": {
+    "action": "./index.html",
+    "method": "GET",
+    "params": {
+      "text": "shared_text"
+    }
+  }
+}
