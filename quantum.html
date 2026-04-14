@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QuantumClip</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        /* Smooth transitions for our DOM swaps */
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        .slide-up { animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+        .slide-right { animation: slideRight 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideRight { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        
+        textarea { resize: none; }
+    </style>
+</head>
+<body class="min-h-screen transition-colors duration-300 dark:bg-slate-950 bg-slate-50 text-slate-800 dark:text-slate-200 font-sans pb-12">
+    
+    <div class="max-w-3xl mx-auto p-4 md:p-6">
+        
+        <!-- Header -->
+        <header class="flex justify-between items-center mb-8">
+            <div class="flex items-center gap-3 cursor-pointer" onclick="closeDatabase()">
+                <div class="p-2 bg-indigo-600 rounded-lg shadow-lg shadow-indigo-500/30">
+                    <i class="ph-bold ph-cube text-white text-xl block"></i>
+                </div>
+                <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-500 dark:from-indigo-400 dark:to-purple-400 tracking-tight">
+                    QuantumClip
+                </h1>
+            </div>
+            <button onclick="toggleTheme()" class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" aria-label="Toggle Theme">
+                <i id="theme-icon" class="ph-fill ph-sun text-xl text-amber-400 hidden dark:block"></i>
+                <i id="theme-icon-light" class="ph-fill ph-moon text-xl text-indigo-600 block dark:hidden"></i>
+            </button>
+        </header>
+
+        <!-- Global Status Message Container -->
+        <div id="status-container" class="mb-6 hidden fade-in"></div>
+
+        <!-- ================= HOME HUB VIEW ================= -->
+        <div id="home-view" class="slide-up block">
+            
+            <!-- Capture Section -->
+            <section class="bg-white dark:bg-slate-900 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 mb-8">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i class="ph-bold ph-clipboard-text text-xl text-indigo-500"></i>
+                    Ingest Data
+                </h2>
+                
+                <textarea
+                    id="pending-text"
+                    placeholder="Paste text here, or click 'Read Clipboard'..."
+                    class="w-full h-24 p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-sm mb-4"
+                ></textarea>
+
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button onclick="handleReadClipboard()" class="flex-1 py-2 px-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 text-sm">
+                        <i class="ph ph-clipboard-text"></i> Read Clipboard
+                    </button>
+                    
+                    <div class="flex-1 flex gap-2">
+                        <select id="db-select" class="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                            <!-- Populated dynamically -->
+                        </select>
+                        
+                        <button onclick="handleSaveSnippet()" class="py-2 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2 text-sm shadow-md">
+                            <i class="ph-bold ph-plus"></i> Store
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Create Database Section -->
+            <section class="bg-slate-100 dark:bg-slate-800/50 rounded-2xl p-5 mb-8 border border-slate-200 dark:border-slate-800">
+                <h2 class="text-sm font-semibold mb-3 text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                    <i class="ph-bold ph-database"></i> Add New Dimension
+                </h2>
+                <div class="flex flex-col sm:flex-row gap-4 items-center">
+                    <input 
+                        type="text" 
+                        id="new-db-name"
+                        placeholder="Database name..." 
+                        class="flex-1 w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                    />
+                    
+                    <!-- Color Picker -->
+                    <div id="color-picker-container" class="flex gap-2 bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <!-- Populated dynamically -->
+                    </div>
+
+                    <button onclick="handleCreateDatabase()" class="w-full sm:w-auto py-2 px-4 bg-slate-800 dark:bg-slate-200 hover:bg-slate-700 dark:hover:bg-white text-white dark:text-slate-900 rounded-xl font-medium transition-colors text-sm">
+                        Create
+                    </button>
+                </div>
+            </section>
+
+            <!-- 3D Cubes Grid -->
+            <section>
+                <h2 class="text-xl font-bold mb-6 text-slate-800 dark:text-slate-100">Your Databases</h2>
+                <div id="cubes-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-6 gap-y-10 pt-4 pl-2">
+                    <!-- Populated dynamically -->
+                </div>
+                <div id="empty-hub-message" class="hidden text-center text-slate-500 py-8">
+                    No databases available. Create a new dimension above.
+                </div>
+            </section>
+
+        </div>
+
+        <!-- ================= DETAILED DATABASE VIEW ================= -->
+        <div id="detail-view" class="hidden slide-right">
+            <div id="detail-view-content">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Core Application State ---
+        const colorPalette = {
+            blue: { name: 'Deep Space Blue', main: 'bg-blue-500', top: 'bg-blue-400', right: 'bg-blue-600', text: 'text-blue-50' },
+            emerald: { name: 'Kinetic Emerald', main: 'bg-emerald-500', top: 'bg-emerald-400', right: 'bg-emerald-600', text: 'text-emerald-50' },
+            amber: { name: 'Thermal Amber', main: 'bg-amber-500', top: 'bg-amber-400', right: 'bg-amber-600', text: 'text-amber-900' },
+            purple: { name: 'Ultraviolet Purple', main: 'bg-purple-500', top: 'bg-purple-400', right: 'bg-purple-600', text: 'text-purple-50' },
+            rose: { name: 'Redshift Rose', main: 'bg-rose-500', top: 'bg-rose-400', right: 'bg-rose-600', text: 'text-rose-50' },
+            cyan: { name: 'Photon Cyan', main: 'bg-cyan-500', top: 'bg-cyan-400', right: 'bg-cyan-600', text: 'text-cyan-900' },
+        };
+
+        const state = {
+            isDarkMode: true,
+            databases: [
+                { name: 'Physics Notes', color: 'blue' },
+                { name: 'Formulas', color: 'emerald' },
+                { name: 'General Ideas', color: 'amber' },
+                { name: 'To-Read', color: 'purple' }
+            ],
+            snippets: [],
+            activeDbName: null,
+            newDbColor: 'cyan',
+            statusTimeout: null
+        };
+
+        // --- Utility Functions ---
+        function generateId() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
+        }
+
+        function showStatus(msg, type) {
+            const container = document.getElementById('status-container');
+            clearTimeout(state.statusTimeout);
+            
+            const isSuccess = type === 'success';
+            const bgClass = isSuccess 
+                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' 
+                : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400 border-rose-200 dark:border-rose-800';
+            const icon = isSuccess ? 'ph-check-circle' : 'ph-warning-circle';
+
+            container.innerHTML = `
+                <div class="p-3 rounded-lg flex items-center gap-2 text-sm font-medium border ${bgClass}">
+                    <i class="ph-fill ${icon} text-lg"></i>
+                    ${msg}
+                </div>
+            `;
+            container.classList.remove('hidden');
+            
+            state.statusTimeout = setTimeout(() => {
+                container.classList.add('hidden');
+            }, 3000);
+        }
+
+        // --- Logic Handlers ---
+        function toggleTheme() {
+            state.isDarkMode = !state.isDarkMode;
+            if (state.isDarkMode) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+
+        async function handleReadClipboard() {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text) {
+                    document.getElementById('pending-text').value = text;
+                    showStatus('Clipboard state captured!', 'success');
+                } else {
+                    showStatus('Clipboard is empty.', 'error');
+                }
+            } catch (err) {
+                showStatus('Auto-read blocked by OS sandbox. Please paste manually.', 'error');
+            }
+        }
+
+        function handleSaveSnippet() {
+            const textarea = document.getElementById('pending-text');
+            const select = document.getElementById('db-select');
+            const text = textarea.value.trim();
+            const dbName = select.value;
+
+            if (!text) return;
+            if (!dbName) {
+                showStatus('No database available.', 'error');
+                return;
+            }
+
+            const newSnippet = {
+                id: generateId(),
+                text: text,
+                database: dbName,
+                timestamp: new Date().toLocaleString()
+            };
+
+            state.snippets.unshift(newSnippet);
+            textarea.value = '';
+            showStatus(`Saved to ${dbName}`, 'success');
+            
+            // Re-render components that show counts
+            renderCubesGrid();
+            if (state.activeDbName === dbName) {
+                renderDetailView();
+            }
+        }
+
+        function handleCreateDatabase() {
+            const input = document.getElementById('new-db-name');
+            const name = input.value.trim();
+
+            if (!name) {
+                showStatus('Please name the dimension.', 'error');
+                return;
+            }
+            if (state.databases.some(db => db.name.toLowerCase() === name.toLowerCase())) {
+                showStatus('A database with this name already exists.', 'error');
+                return;
+            }
+
+            state.databases.push({ name: name, color: state.newDbColor });
+            input.value = '';
+            
+            showStatus('New dimension initialized!', 'success');
+            renderAll();
+            
+            // Auto-select the newly created DB in the ingest form
+            document.getElementById('db-select').value = name;
+        }
+
+        function handleDeleteDatabase(dbName) {
+            if(window.confirm(`Collapse wave function? This will delete '${dbName}' and all its contents.`)) {
+                state.databases = state.databases.filter(db => db.name !== dbName);
+                state.snippets = state.snippets.filter(s => s.database !== dbName);
+                showStatus(`Dimension ${dbName} deleted.`, 'success');
+                closeDatabase();
+                renderAll();
+            }
+        }
+
+        function handleDeleteSnippet(id) {
+            state.snippets = state.snippets.filter(s => s.id !== id);
+            renderCubesGrid(); // Update count on hub
+            renderDetailView(); // Update list
+        }
+
+        function setNewDbColor(colorKey) {
+            state.newDbColor = colorKey;
+            renderColorPicker();
+        }
+
+        function openDatabase(encodedName) {
+            state.activeDbName = decodeURIComponent(encodedName);
+            document.getElementById('home-view').classList.add('hidden');
+            document.getElementById('home-view').classList.remove('block');
+            document.getElementById('detail-view').classList.remove('hidden');
+            document.getElementById('detail-view').classList.add('block');
+            renderDetailView();
+        }
+
+        function closeDatabase() {
+            state.activeDbName = null;
+            document.getElementById('detail-view').classList.add('hidden');
+            document.getElementById('detail-view').classList.remove('block');
+            document.getElementById('home-view').classList.remove('hidden');
+            document.getElementById('home-view').classList.add('block');
+            renderCubesGrid();
+        }
+
+        // --- Render Functions ---
+        function renderDbSelect() {
+            const select = document.getElementById('db-select');
+            const currentValue = select.value;
+            
+            select.innerHTML = state.databases.map(db => 
+                `<option value="${db.name}">${db.name}</option>`
+            ).join('');
+
+            // Try to keep selection if it still exists
+            if (state.databases.some(db => db.name === currentValue)) {
+                select.value = currentValue;
+            }
+        }
+
+        function renderColorPicker() {
+            const container = document.getElementById('color-picker-container');
+            container.innerHTML = Object.entries(colorPalette).map(([key, value]) => `
+                <button
+                    onclick="setNewDbColor('${key}')"
+                    title="${value.name}"
+                    class="w-6 h-6 rounded-full transition-all ${value.main} ${state.newDbColor === key ? 'ring-2 ring-offset-2 ring-slate-800 dark:ring-slate-200 scale-110' : 'hover:scale-110'}"
+                ></button>
+            `).join('');
+        }
+
+        function renderCubesGrid() {
+            const container = document.getElementById('cubes-grid');
+            const emptyMsg = document.getElementById('empty-hub-message');
+            
+            if (state.databases.length === 0) {
+                container.innerHTML = '';
+                emptyMsg.classList.remove('hidden');
+                return;
+            }
+            
+            emptyMsg.classList.add('hidden');
+            
+            container.innerHTML = state.databases.map(db => {
+                const palette = colorPalette[db.color];
+                const count = state.snippets.filter(s => s.database === db.name).length;
+                const encodedName = encodeURIComponent(db.name);
+                
+                return `
+                    <div class="relative pr-3 pb-3 fade-in">
+                        <div onclick="openDatabase('${encodedName}')" class="relative group cursor-pointer transition-transform active:translate-y-[4px] active:translate-x-[4px] hover:-translate-y-1 hover:-translate-x-1">
+                            <!-- Top Face -->
+                            <div class="absolute bottom-full left-0 w-full h-[12px] ${palette.top} brightness-110 border-b border-black/10" style="transform-origin: bottom; transform: skewX(-45deg)"></div>
+                            
+                            <!-- Right Face -->
+                            <div class="absolute left-full top-0 w-[12px] h-full ${palette.right} brightness-90 border-l border-black/10" style="transform-origin: left; transform: skewY(-45deg)"></div>
+                            
+                            <!-- Front Face -->
+                            <div class="relative w-full aspect-square ${palette.main} flex flex-col items-center justify-center p-3 shadow-lg group-hover:shadow-2xl transition-shadow border border-white/10">
+                                <i class="ph ph-cube text-3xl mb-3 ${palette.text} opacity-80"></i>
+                                <span class="font-semibold text-center ${palette.text} text-sm w-full truncate drop-shadow-sm">
+                                    ${db.name}
+                                </span>
+                                <!-- Badge -->
+                                <div class="absolute top-2 right-2 text-xs font-mono font-bold bg-black/20 ${palette.text} px-2 py-0.5 rounded-full">
+                                    ${count}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[tag])
+            );
+        }
+
+        function renderDetailView() {
+            if (!state.activeDbName) return;
+            
+            const db = state.databases.find(d => d.name === state.activeDbName);
+            if (!db) return; // DB was deleted
+            
+            const palette = colorPalette[db.color];
+            const dbSnippets = state.snippets.filter(s => s.database === db.name);
+            const container = document.getElementById('detail-view-content');
+
+            let snippetsHTML = dbSnippets.map(snippet => `
+                <div class="group bg-white dark:bg-slate-900 p-5 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 relative hover:border-indigo-300 dark:hover:border-indigo-500/50 transition-colors fade-in">
+                    <p class="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed pr-8">${escapeHTML(snippet.text)}</p>
+                    <div class="mt-4 text-xs font-mono text-slate-400 dark:text-slate-500">
+                        Logged: ${snippet.timestamp}
+                    </div>
+                    <button onclick="handleDeleteSnippet('${snippet.id}')" class="absolute top-4 right-4 p-2 text-slate-300 hover:text-rose-500 transition-colors opacity-0 group-hover:opacity-100" aria-label="Delete snippet">
+                        <i class="ph-bold ph-trash text-lg"></i>
+                    </button>
+                </div>
+            `).join('');
+
+            if (dbSnippets.length === 0) {
+                snippetsHTML = `
+                    <div class="text-center py-16 bg-white/50 dark:bg-slate-900/50 border border-dashed border-slate-300 dark:border-slate-700 rounded-2xl">
+                        <i class="ph ph-cube text-4xl block mx-auto mb-4 text-slate-300 dark:text-slate-600"></i>
+                        <p class="text-slate-500 dark:text-slate-400 font-medium">This dimension is empty.</p>
+                        <p class="text-sm mt-1 text-slate-400 dark:text-slate-500">Go back to the hub to ingest data into ${escapeHTML(db.name)}.</p>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = `
+                <button onclick="closeDatabase()" class="mb-8 flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100 transition-colors">
+                    <i class="ph-bold ph-arrow-left"></i> Back to Hub
+                </button>
+                
+                <div class="flex items-center justify-between mb-8 pb-4 border-b border-slate-200 dark:border-slate-800">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-xl shadow-inner ${palette.main} flex items-center justify-center">
+                            <i class="ph-bold ph-database text-lg ${palette.text}"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold text-slate-800 dark:text-slate-100">${escapeHTML(db.name)}</h2>
+                            <p class="text-sm text-slate-500">${dbSnippets.length} items stored</p>
+                        </div>
+                    </div>
+                    
+                    <button onclick="handleDeleteDatabase('${escapeHTML(db.name)}')" class="p-2 text-slate-400 hover:text-rose-500 transition-colors" title="Delete Database">
+                        <i class="ph-bold ph-trash text-xl"></i>
+                    </button>
+                </div>
+
+                <div class="space-y-4">
+                    ${snippetsHTML}
+                </div>
+            `;
+        }
+
+        function renderAll() {
+            renderDbSelect();
+            renderColorPicker();
+            renderCubesGrid();
+        }
+
+        // Initialize Application
+        document.addEventListener('DOMContentLoaded', () => {
+            renderAll();
+        });
+
+    </script>
+</body>
+</html>
