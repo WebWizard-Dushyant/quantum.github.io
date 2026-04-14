@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QuantumClip</title>
     
+    <!-- Link to manifest for Android Share Target API -->
+    <link rel="manifest" href="manifest.json">
+    
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -51,8 +54,8 @@
                 </h1>
             </div>
             <button onclick="toggleTheme()" class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors" aria-label="Toggle Theme">
-                <i id="theme-icon" class="ph-fill ph-sun text-xl text-amber-400 hidden dark:block"></i>
-                <i id="theme-icon-light" class="ph-fill ph-moon text-xl text-indigo-600 block dark:hidden"></i>
+                <i id="theme-icon-light" class="ph-fill ph-sun text-xl text-amber-400 hidden"></i>
+                <i id="theme-icon-dark" class="ph-fill ph-moon text-xl text-indigo-600 hidden"></i>
             </button>
         </header>
 
@@ -139,7 +142,7 @@
     </div>
 
     <script>
-        // --- Core Application State ---
+        // --- Core Application State & Constants ---
         const colorPalette = {
             blue: { name: 'Deep Space Blue', main: 'bg-blue-500', top: 'bg-blue-400', right: 'bg-blue-600', text: 'text-blue-50' },
             emerald: { name: 'Kinetic Emerald', main: 'bg-emerald-500', top: 'bg-emerald-400', right: 'bg-emerald-600', text: 'text-emerald-50' },
@@ -149,7 +152,7 @@
             cyan: { name: 'Photon Cyan', main: 'bg-cyan-500', top: 'bg-cyan-400', right: 'bg-cyan-600', text: 'text-cyan-900' },
         };
 
-        const state = {
+        const defaultState = {
             isDarkMode: true,
             databases: [
                 { name: 'Physics Notes', color: 'blue' },
@@ -158,10 +161,36 @@
                 { name: 'To-Read', color: 'purple' }
             ],
             snippets: [],
-            activeDbName: null,
-            newDbColor: 'cyan',
-            statusTimeout: null
+            newDbColor: 'cyan'
         };
+
+        let state = {};
+        let activeDbName = null;
+        let statusTimeout = null;
+
+        // --- Local Storage Initialization ---
+        function loadState() {
+            try {
+                const saved = localStorage.getItem('quantumClipData');
+                if (saved) {
+                    state = JSON.parse(saved);
+                    // Ensure backward compatibility if new keys were added
+                    if (state.isDarkMode === undefined) state.isDarkMode = true;
+                    if (!state.databases) state.databases = defaultState.databases;
+                    if (!state.snippets) state.snippets = [];
+                    if (!state.newDbColor) state.newDbColor = 'cyan';
+                } else {
+                    state = JSON.parse(JSON.stringify(defaultState)); // Deep copy default
+                }
+            } catch (e) {
+                console.error("Failed to load local storage:", e);
+                state = JSON.parse(JSON.stringify(defaultState));
+            }
+        }
+
+        function saveState() {
+            localStorage.setItem('quantumClipData', JSON.stringify(state));
+        }
 
         // --- Utility Functions ---
         function generateId() {
@@ -170,7 +199,7 @@
 
         function showStatus(msg, type) {
             const container = document.getElementById('status-container');
-            clearTimeout(state.statusTimeout);
+            clearTimeout(statusTimeout);
             
             const isSuccess = type === 'success';
             const bgClass = isSuccess 
@@ -186,19 +215,32 @@
             `;
             container.classList.remove('hidden');
             
-            state.statusTimeout = setTimeout(() => {
+            statusTimeout = setTimeout(() => {
                 container.classList.add('hidden');
             }, 3000);
         }
 
         // --- Logic Handlers ---
+        function applyTheme() {
+            const html = document.documentElement;
+            const darkIcon = document.getElementById('theme-icon-dark');
+            const lightIcon = document.getElementById('theme-icon-light');
+            
+            if (state.isDarkMode) {
+                html.classList.add('dark');
+                darkIcon.classList.add('hidden');
+                lightIcon.classList.remove('hidden');
+            } else {
+                html.classList.remove('dark');
+                lightIcon.classList.add('hidden');
+                darkIcon.classList.remove('hidden');
+            }
+            saveState();
+        }
+
         function toggleTheme() {
             state.isDarkMode = !state.isDarkMode;
-            if (state.isDarkMode) {
-                document.documentElement.classList.add('dark');
-            } else {
-                document.documentElement.classList.remove('dark');
-            }
+            applyTheme();
         }
 
         async function handleReadClipboard() {
@@ -235,12 +277,13 @@
             };
 
             state.snippets.unshift(newSnippet);
+            saveState(); // Persist to local storage
+
             textarea.value = '';
             showStatus(`Saved to ${dbName}`, 'success');
             
-            // Re-render components that show counts
             renderCubesGrid();
-            if (state.activeDbName === dbName) {
+            if (activeDbName === dbName) {
                 renderDetailView();
             }
         }
@@ -259,12 +302,13 @@
             }
 
             state.databases.push({ name: name, color: state.newDbColor });
+            saveState(); // Persist to local storage
+
             input.value = '';
             
             showStatus('New dimension initialized!', 'success');
             renderAll();
             
-            // Auto-select the newly created DB in the ingest form
             document.getElementById('db-select').value = name;
         }
 
@@ -272,6 +316,8 @@
             if(window.confirm(`Collapse wave function? This will delete '${dbName}' and all its contents.`)) {
                 state.databases = state.databases.filter(db => db.name !== dbName);
                 state.snippets = state.snippets.filter(s => s.database !== dbName);
+                saveState(); // Persist to local storage
+
                 showStatus(`Dimension ${dbName} deleted.`, 'success');
                 closeDatabase();
                 renderAll();
@@ -280,17 +326,20 @@
 
         function handleDeleteSnippet(id) {
             state.snippets = state.snippets.filter(s => s.id !== id);
-            renderCubesGrid(); // Update count on hub
-            renderDetailView(); // Update list
+            saveState(); // Persist to local storage
+            
+            renderCubesGrid(); 
+            renderDetailView(); 
         }
 
         function setNewDbColor(colorKey) {
             state.newDbColor = colorKey;
+            saveState(); // Persist choice
             renderColorPicker();
         }
 
         function openDatabase(encodedName) {
-            state.activeDbName = decodeURIComponent(encodedName);
+            activeDbName = decodeURIComponent(encodedName);
             document.getElementById('home-view').classList.add('hidden');
             document.getElementById('home-view').classList.remove('block');
             document.getElementById('detail-view').classList.remove('hidden');
@@ -299,7 +348,7 @@
         }
 
         function closeDatabase() {
-            state.activeDbName = null;
+            activeDbName = null;
             document.getElementById('detail-view').classList.add('hidden');
             document.getElementById('detail-view').classList.remove('block');
             document.getElementById('home-view').classList.remove('hidden');
@@ -313,10 +362,9 @@
             const currentValue = select.value;
             
             select.innerHTML = state.databases.map(db => 
-                `<option value="${db.name}">${db.name}</option>`
+                `<option value="${escapeHTML(db.name)}">${escapeHTML(db.name)}</option>`
             ).join('');
 
-            // Try to keep selection if it still exists
             if (state.databases.some(db => db.name === currentValue)) {
                 select.value = currentValue;
             }
@@ -346,7 +394,7 @@
             emptyMsg.classList.add('hidden');
             
             container.innerHTML = state.databases.map(db => {
-                const palette = colorPalette[db.color];
+                const palette = colorPalette[db.color] || colorPalette.cyan;
                 const count = state.snippets.filter(s => s.database === db.name).length;
                 const encodedName = encodeURIComponent(db.name);
                 
@@ -363,7 +411,7 @@
                             <div class="relative w-full aspect-square ${palette.main} flex flex-col items-center justify-center p-3 shadow-lg group-hover:shadow-2xl transition-shadow border border-white/10">
                                 <i class="ph ph-cube text-3xl mb-3 ${palette.text} opacity-80"></i>
                                 <span class="font-semibold text-center ${palette.text} text-sm w-full truncate drop-shadow-sm">
-                                    ${db.name}
+                                    ${escapeHTML(db.name)}
                                 </span>
                                 <!-- Badge -->
                                 <div class="absolute top-2 right-2 text-xs font-mono font-bold bg-black/20 ${palette.text} px-2 py-0.5 rounded-full">
@@ -389,12 +437,12 @@
         }
 
         function renderDetailView() {
-            if (!state.activeDbName) return;
+            if (!activeDbName) return;
             
-            const db = state.databases.find(d => d.name === state.activeDbName);
-            if (!db) return; // DB was deleted
+            const db = state.databases.find(d => d.name === activeDbName);
+            if (!db) return; 
             
-            const palette = colorPalette[db.color];
+            const palette = colorPalette[db.color] || colorPalette.cyan;
             const dbSnippets = state.snippets.filter(s => s.database === db.name);
             const container = document.getElementById('detail-view-content');
 
@@ -448,14 +496,33 @@
         }
 
         function renderAll() {
+            applyTheme();
             renderDbSelect();
             renderColorPicker();
             renderCubesGrid();
         }
 
-        // Initialize Application
-        document.addEventListener('DOMContentLoaded', () => {
-            renderAll();
+        // --- Android Web Share API Listener & Initialization ---
+        window.addEventListener('DOMContentLoaded', () => {
+            loadState(); // Read from localStorage
+            renderAll(); // Build the UI
+
+            // Check if Android sent data through the Share menu
+            const parsedUrl = new URL(window.location);
+            const sharedText = parsedUrl.searchParams.get('shared_text');
+            
+            if (sharedText) {
+                const textarea = document.getElementById('pending-text');
+                textarea.value = sharedText;
+                showStatus('Data tunneled from Android Share!', 'success');
+                // Clean the URL so refreshing doesn't re-add it
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+
+            // Register Service Worker for PWA (Android Share requirement)
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration skipped/failed', err));
+            }
         });
 
     </script>
